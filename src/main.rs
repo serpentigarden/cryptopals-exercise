@@ -67,7 +67,7 @@ fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
 
 #[cfg(test)]
 mod tests {
-    use crate::Base64Sequence;
+    use crate::{Base64Sequence, fixed_xor};
     use hex_literal::hex;
 
     #[test]
@@ -87,8 +87,32 @@ mod tests {
         let h2 = hex!("686974207468652062756c6c277320657965");
         use std::cmp::max;
         let mut result: Vec<u8> = vec![0; max(h1.len(), h2.len())];
-        crate::fixed_xor(&h1, &h2, &mut result);
+        fixed_xor(&h1, &h2, &mut result);
 
         assert_eq!(result, hex!("746865206b696420646f6e277420706c6179"));
+    }
+
+    #[test]
+    fn decode_ciphertxt() {
+        // let ciphertxt =
+        //     hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        // let mut candidate_mask: Vec<u8> = vec![0; ciphertxt.len()];
+        // let mut xor_result: Vec<u8> = vec![0; ciphertxt.len()];
+        // for i in 0..128 {
+        //     candidate_mask.fill(i);
+        //     fixed_xor(&ciphertxt, &candidate_mask, &mut xor_result);
+        //     for &b in &xor_result {
+        //         print!("{}", b as char);
+        //     }
+        //     println!(" {}", i as char);
+        //     xor_result.fill(0);
+        // }
+        let plaintxt = "Cooking MC's like a pound of bacon".as_bytes();
+        let mut result: Vec<u8> = vec![0; plaintxt.len()];
+        fixed_xor(&plaintxt, &vec!['X' as u8; plaintxt.len()], &mut result);
+        assert_eq!(
+            result,
+            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
+        );
     }
 }

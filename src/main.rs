@@ -67,6 +67,21 @@ fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
     }
 }
 
+fn xor_repeat_key(s: &String, key: &String) -> Vec<u8> {
+    let mut cipher = vec![];
+    let mut s_bytes = s.bytes().peekable();
+    while let Some(_) = s_bytes.peek() {
+        let mut k_bytes = key.bytes();
+        while let (Some(&b1), Some(b2)) = (s_bytes.peek(), k_bytes.next()) {
+            println!("{} ^ {}", b1 as char, b2 as char);
+            cipher.push(b1 ^ b2);
+            s_bytes.next();
+        }
+    }
+    println!("{} ({}), {}", s, s.len(), cipher.len());
+    cipher
+}
+
 #[allow(dead_code)]
 #[cfg(test)]
 mod tests {
@@ -92,7 +107,7 @@ mod tests {
         let mut result: Vec<u8> = vec![0; max(h1.len(), h2.len())];
         fixed_xor(&h1, &h2, &mut result);
 
-        assert_eq!(result, hex!("746865206b696420646f6e277420706c6179"));
+        assert_eq!(hex::encode(result), "746865206b696420646f6e277420706c6179");
     }
 
     #[test]
@@ -105,8 +120,8 @@ mod tests {
         let mut result: Vec<u8> = vec![0; plaintxt.len()];
         fixed_xor(&plaintxt, &vec!['X' as u8; plaintxt.len()], &mut result);
         assert_eq!(
-            result,
-            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736")
+            hex::encode(result),
+            "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
         );
     }
 
@@ -154,13 +169,7 @@ mod tests {
 
         // let mut amt_read = reader.read_line(&mut line_buf).unwrap();
         // while amt_read > 0 {
-        //     let last_char = line_buf.chars().last().unwrap();
-        //     let size = if last_char == '\n' {
-        //         amt_read - 1
-        //     } else {
-        //         amt_read
-        //     };
-        //     line_buf.truncate(size);
+        //     rm_newline(&mut line_buf);
         //     try_decode_ciphertxt_with_single_char(&line_buf);
 
         //     line_buf.clear();
@@ -170,8 +179,25 @@ mod tests {
         let mut result: Vec<u8> = vec![0; plaintxt.len()];
         fixed_xor(&plaintxt, &vec!['5' as u8; plaintxt.len()], &mut result);
         assert_eq!(
-            result,
-            hex!("7b5a4215415d544115415d5015455447414c155c46155f4058455c5b523f")
+            hex::encode(result),
+            "7b5a4215415d544115415d5015455447414c155c46155f4058455c5b523f"
         );
+    }
+
+    fn rm_newline(s: &mut String) {
+        let last_char = s.chars().last().unwrap();
+        if last_char == '\n' {
+            s.truncate(s.len() - 1)
+        }
+    }
+
+    #[test]
+    fn with_repeating_key() {
+        let msg = String::from(
+            "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal",
+        );
+        let key = String::from("ICE");
+        let expected = "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
+        assert_eq!(hex::encode(crate::xor_repeat_key(&msg, &key)), expected);
     }
 }

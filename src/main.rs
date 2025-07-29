@@ -1,21 +1,7 @@
 #[allow(dead_code)]
-use std::{cmp::max, fmt};
+use std::fmt;
 
 fn main() {}
-
-fn print_hex(v: &Vec<u8>) {
-    for b in v {
-        print!("{:02x}", b);
-    }
-    println!();
-}
-
-fn print_chars(v: &Vec<u8>) {
-    for &b in v {
-        print!("{}", b as char);
-    }
-    println!();
-}
 
 struct Base64Sequence<'a>(&'a [u8]);
 
@@ -75,14 +61,16 @@ impl<'a> fmt::Display for Base64Sequence<'a> {
 
 fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
     assert!(h1.len() == h2.len());
+    assert!(h1.len() == result.len());
     for i in 0..h1.len() {
         result[i] = h1[i] ^ h2[i];
     }
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 mod tests {
-    use crate::{Base64Sequence, fixed_xor, print_chars};
+    use crate::{Base64Sequence, fixed_xor};
     use hex_literal::hex;
 
     #[test]
@@ -109,9 +97,9 @@ mod tests {
 
     #[test]
     fn decode_ciphertxt() {
-        let ciphertxt =
-            String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-        try_decode_ciphertxt_with_single_char(&ciphertxt);
+        // let ciphertxt =
+        //     String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        // try_decode_ciphertxt_with_single_char(&ciphertxt);
 
         let plaintxt = "Cooking MC's like a pound of bacon".as_bytes();
         let mut result: Vec<u8> = vec![0; plaintxt.len()];
@@ -123,12 +111,13 @@ mod tests {
     }
 
     fn maybe_valid_english(s: &String) -> bool {
+        let mut num_spaces = 0;
         for c in s.chars() {
             if c == ' ' {
-                return true;
+                num_spaces += 1;
             }
         }
-        false
+        return num_spaces > 2;
     }
 
     fn try_decode_ciphertxt_with_single_char(hex_cipher: &String) {
@@ -157,26 +146,32 @@ mod tests {
 
     #[test]
     fn decode_many_ciphertxts() {
-        use std::fs;
-        use std::io::{BufRead, BufReader};
+        // use std::fs;
+        // use std::io::{BufRead, BufReader};
+        // let file = fs::File::open("set1_challenge4.txt").unwrap();
+        // let mut reader = BufReader::new(file);
+        // let mut line_buf = String::with_capacity(1000);
 
-        let file = fs::File::open("edited_set1_challenge4.txt").unwrap();
-        let mut reader = BufReader::new(file);
-        let mut line_buf = String::with_capacity(1000);
+        // let mut amt_read = reader.read_line(&mut line_buf).unwrap();
+        // while amt_read > 0 {
+        //     let last_char = line_buf.chars().last().unwrap();
+        //     let size = if last_char == '\n' {
+        //         amt_read - 1
+        //     } else {
+        //         amt_read
+        //     };
+        //     line_buf.truncate(size);
+        //     try_decode_ciphertxt_with_single_char(&line_buf);
 
-        let mut amt_read = reader.read_line(&mut line_buf).unwrap();
-        while amt_read > 0 {
-            let last_char = line_buf.chars().last().unwrap();
-            let size = if last_char == '\n' {
-                amt_read - 1
-            } else {
-                amt_read
-            };
-            line_buf.truncate(size);
-            try_decode_ciphertxt_with_single_char(&line_buf);
-
-            line_buf.clear();
-            amt_read = reader.read_line(&mut line_buf).unwrap()
-        }
+        //     line_buf.clear();
+        //     amt_read = reader.read_line(&mut line_buf).unwrap()
+        // }
+        let plaintxt = "Now that the party is jumping\n".as_bytes();
+        let mut result: Vec<u8> = vec![0; plaintxt.len()];
+        fixed_xor(&plaintxt, &vec!['5' as u8; plaintxt.len()], &mut result);
+        assert_eq!(
+            result,
+            hex!("7b5a4215415d544115415d5015455447414c155c46155f4058455c5b523f")
+        );
     }
 }

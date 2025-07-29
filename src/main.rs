@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cmp::max, fmt};
 
 fn main() {}
 
@@ -58,6 +58,13 @@ impl<'a> fmt::Display for Base64Sequence<'a> {
     }
 }
 
+fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
+    let n = max(h1.len(), h2.len());
+    for i in 0..n {
+        result[i] = h1[i] ^ h2[i];
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::Base64Sequence;
@@ -72,5 +79,16 @@ mod tests {
             format!("{}", Base64Sequence(hex_input.as_slice())),
             "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
         );
+    }
+
+    #[test]
+    fn fixed_xor_example() {
+        let h1 = hex!("1c0111001f010100061a024b53535009181c");
+        let h2 = hex!("686974207468652062756c6c277320657965");
+        use std::cmp::max;
+        let mut result: Vec<u8> = vec![0; max(h1.len(), h2.len())];
+        crate::fixed_xor(&h1, &h2, &mut result);
+
+        assert_eq!(result, hex!("746865206b696420646f6e277420706c6179"));
     }
 }

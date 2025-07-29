@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use std::{cmp::max, fmt};
 
 fn main() {}
@@ -73,8 +74,8 @@ impl<'a> fmt::Display for Base64Sequence<'a> {
 }
 
 fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
-    let n = max(h1.len(), h2.len());
-    for i in 0..n {
+    assert!(h1.len() == h2.len());
+    for i in 0..h1.len() {
         result[i] = h1[i] ^ h2[i];
     }
 }
@@ -109,7 +110,7 @@ mod tests {
     #[test]
     fn decode_ciphertxt() {
         let ciphertxt =
-            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+            String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
         try_decode_ciphertxt_with_single_char(&ciphertxt);
 
         let plaintxt = "Cooking MC's like a pound of bacon".as_bytes();
@@ -121,32 +122,41 @@ mod tests {
         );
     }
 
-    fn maybe_valid_english(bytes: &[u8]) -> bool {
-        for &b in bytes {
-            if b == b' ' {
+    fn maybe_valid_english(s: &String) -> bool {
+        for c in s.chars() {
+            if c == ' ' {
                 return true;
             }
         }
         false
     }
 
-    fn try_decode_ciphertxt_with_single_char(ciphertxt: &[u8]) {
-        let mut candidate_mask: Vec<u8> = vec![0; ciphertxt.len()];
-        let mut xor_result: Vec<u8> = vec![0; ciphertxt.len()];
+    fn try_decode_ciphertxt_with_single_char(hex_cipher: &String) {
+        let mut candidate_mask: Vec<u8> = vec![0; hex_cipher.len() / 2];
         for i in 0..128 {
+            let mut xor_result: Vec<u8> = vec![0; hex_cipher.len() / 2];
             candidate_mask.fill(i);
-            fixed_xor(&ciphertxt, &candidate_mask, &mut xor_result);
-            if maybe_valid_english(&xor_result) {
-                println!("Repeated char: {} ({})", i, i as char);
-                print_chars(&xor_result);
-            }
-            xor_result.fill(0);
+
+            fixed_xor(
+                &hex::decode(hex_cipher).unwrap(),
+                &candidate_mask,
+                &mut xor_result,
+            );
+            match String::from_utf8(xor_result) {
+                Ok(s) => {
+                    if maybe_valid_english(&s) {
+                        println!("{} ^ [{} ({})] => {}", hex_cipher, i, i as char, s);
+                    }
+                }
+                Err(_) => {
+                    // println!("{} ^ [{} ({})] => invalid utf8", hex_cipher, i, i as char, s);
+                }
+            };
         }
     }
 
     #[test]
     fn decode_many_ciphertxts() {
-        use hex;
         use std::fs;
         use std::io::{BufRead, BufReader};
 
@@ -154,26 +164,19 @@ mod tests {
         let mut reader = BufReader::new(file);
         let mut line_buf = String::with_capacity(1000);
 
-        while let Ok(size) = &reader.read_line(&mut line_buf) {
-            let size = *size;
-            if size == 0 {
-                println!("Did not read a line");
-                return;
-            }
-
-            let byte_buf = line_buf.as_bytes();
-            let size = if byte_buf[size - 1] == b'\n' {
-                size - 1
+        let mut amt_read = reader.read_line(&mut line_buf).unwrap();
+        while amt_read > 0 {
+            let last_char = line_buf.chars().last().unwrap();
+            let size = if last_char == '\n' {
+                amt_read - 1
             } else {
-                size
+                amt_read
             };
+            line_buf.truncate(size);
+            try_decode_ciphertxt_with_single_char(&line_buf);
 
-            let mut ciphertxt = vec![0; size / 2];
-            hex::decode_to_slice(&byte_buf[0..size], &mut ciphertxt).unwrap();
-            try_decode_ciphertxt_with_single_char(&ciphertxt);
-
-            std::io::stdin().read_line(&mut line_buf).unwrap();
             line_buf.clear();
+            amt_read = reader.read_line(&mut line_buf).unwrap()
         }
     }
 }

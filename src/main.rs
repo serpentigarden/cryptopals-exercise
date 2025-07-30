@@ -1,11 +1,14 @@
 use std::fmt;
 
-fn main() {}
+fn main() {
+    use std::{fs, io::Read};
+    let mut file = fs::File::open("1_6.txt").unwrap();
+    let mut buf = vec![0; 100000];
+    println!("{}", file.read_to_end(&mut buf).unwrap());
+}
 
-#[allow(dead_code)]
 struct Base64Sequence<'a>(&'a [u8]);
 
-#[allow(dead_code)]
 fn to_base64_char(n: u8) -> char {
     (match n {
         // A-Z
@@ -23,8 +26,10 @@ fn to_base64_char(n: u8) -> char {
 }
 
 impl<'a> Base64Sequence<'a> {
-    #[allow(dead_code)]
-    fn to_base64_repr(&self) -> String {
+    // fn from_base64() ->  {
+    // }
+
+    fn to_base64(&self) -> String {
         let mut bit_p: usize = 0;
         let mut last_bit: usize = 0;
         let mut buf: u16 = 0;
@@ -57,11 +62,10 @@ impl<'a> Base64Sequence<'a> {
 
 impl<'a> fmt::Display for Base64Sequence<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_base64_repr())
+        write!(f, "{}", self.to_base64())
     }
 }
 
-#[allow(dead_code)]
 fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
     assert!(h1.len() == h2.len(), "{} == {}", h1.len(), h2.len());
     assert!(h1.len() == result.len(), "{} == {}", h1.len(), result.len());
@@ -70,11 +74,11 @@ fn fixed_xor(h1: &[u8], h2: &[u8], result: &mut [u8]) {
     }
 }
 
-fn xor_repeat_key(s: &String, key: &String) -> Vec<u8> {
+fn xor_repeat_key(s: &[u8], key: &[u8]) -> Vec<u8> {
     let mut cipher = vec![];
-    let mut s_bytes = s.bytes().peekable();
+    let mut s_bytes = s.iter().peekable();
     while let Some(_) = s_bytes.peek() {
-        let mut k_bytes = key.bytes();
+        let mut k_bytes = key.iter();
         while let (Some(&b1), Some(b2)) = (s_bytes.peek(), k_bytes.next()) {
             cipher.push(b1 ^ b2);
             s_bytes.next();
@@ -83,7 +87,6 @@ fn xor_repeat_key(s: &String, key: &String) -> Vec<u8> {
     cipher
 }
 
-#[allow(dead_code)]
 // doesn't account for differing lengths
 fn get_hamming_distance(b1: &[u8], b2: &[u8]) -> u32 {
     let mut result = vec![0; b1.len()];
@@ -91,12 +94,11 @@ fn get_hamming_distance(b1: &[u8], b2: &[u8]) -> u32 {
     result.iter().map(|b| b.count_ones()).sum()
 }
 
-#[allow(dead_code)]
 #[cfg(test)]
 mod tests {
-    use std::io::Read;
-    use crate::{fixed_xor, get_hamming_distance, Base64Sequence};
+    use crate::{Base64Sequence, fixed_xor, get_hamming_distance};
     use hex_literal::hex;
+    use std::io::Read;
 
     #[test]
     fn hex_to_base64() {
@@ -122,9 +124,9 @@ mod tests {
 
     #[test]
     fn decode_ciphertxt() {
-        let ciphertxt =
-            String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-        try_decode_ciphertxt_with_single_char(&ciphertxt);
+        // let ciphertxt =
+        //     String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        // try_decode_ciphertxt_with_single_char(&ciphertxt);
 
         let plaintxt = "Cooking MC's like a pound of bacon".as_bytes();
         let mut result: Vec<u8> = vec![0; plaintxt.len()];
@@ -133,6 +135,21 @@ mod tests {
             hex::encode(result),
             "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
         );
+    }
+
+    fn try_decode_ciphertxt_with_single_char(cipher: &String) {
+        for i in 0..128 as u8 {
+            match String::from_utf8(crate::xor_repeat_key(&hex::decode(cipher).unwrap(), &[i])) {
+                Ok(s) => {
+                    if maybe_valid_english(&s) {
+                        println!("{} ^ [{} ({})] => {}", cipher, i, i as char, s);
+                    }
+                }
+                Err(_) => {
+                    // println!("{} ^ [{} ({})] => invalid utf8", hex_cipher, i, i as char, s);
+                }
+            };
+        }
     }
 
     fn maybe_valid_english(s: &String) -> bool {
@@ -145,46 +162,23 @@ mod tests {
         return num_spaces > 2;
     }
 
-    fn try_decode_ciphertxt_with_single_char(hex_cipher: &String) {
-        let mut candidate_mask: Vec<u8> = vec![0; hex_cipher.len() / 2];
-        for i in 0..128 {
-            let mut xor_result: Vec<u8> = vec![0; hex_cipher.len() / 2];
-            candidate_mask.fill(i);
-
-            fixed_xor(
-                &hex::decode(hex_cipher).unwrap(),
-                &candidate_mask,
-                &mut xor_result,
-            );
-            match String::from_utf8(xor_result) {
-                Ok(s) => {
-                    if maybe_valid_english(&s) {
-                        println!("{} ^ [{} ({})] => {}", hex_cipher, i, i as char, s);
-                    }
-                }
-                Err(_) => {
-                    // println!("{} ^ [{} ({})] => invalid utf8", hex_cipher, i, i as char, s);
-                }
-            };
-        }
-    }
-
     #[test]
     fn decode_many_ciphertxts() {
-        use std::fs;
-        use std::io::{BufRead, BufReader};
-        let file = fs::File::open("1_4.txt").unwrap();
-        let mut reader = BufReader::new(file);
-        let mut line_buf = String::with_capacity(1000);
+        // use std::fs;
+        // use std::io::{BufRead, BufReader};
+        // let file = fs::File::open("1_4.txt").unwrap();
+        // let mut reader = BufReader::new(file);
+        // let mut line_buf = String::with_capacity(1000);
 
-        let mut amt_read = reader.read_line(&mut line_buf).unwrap();
-        while amt_read > 0 {
-            rm_newline(&mut line_buf);
-            try_decode_ciphertxt_with_single_char(&line_buf);
+        // let mut amt_read = reader.read_line(&mut line_buf).unwrap();
+        // while amt_read > 0 {
+        //     rm_newline(&mut line_buf);
+        //     try_decode_ciphertxt_with_single_char(&line_buf);
 
-            line_buf.clear();
-            amt_read = reader.read_line(&mut line_buf).unwrap()
-        }
+        //     line_buf.clear();
+        //     amt_read = reader.read_line(&mut line_buf).unwrap()
+        // }
+
         let plaintxt = "Now that the party is jumping\n".as_bytes();
         let mut result: Vec<u8> = vec![0; plaintxt.len()];
         fixed_xor(&plaintxt, &vec!['5' as u8; plaintxt.len()], &mut result);
@@ -208,7 +202,10 @@ mod tests {
         );
         let key = String::from("ICE");
         let expected = "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
-        assert_eq!(hex::encode(crate::xor_repeat_key(&msg, &key)), expected);
+        assert_eq!(
+            hex::encode(crate::xor_repeat_key(&msg.as_bytes(), &key.as_bytes())),
+            expected
+        );
     }
 
     #[test]
@@ -252,8 +249,10 @@ mod tests {
         // Trying key sizes showed 3, 2, 7 to be promising.
         const KEY_SIZE: usize = 3;
 
-        let mut chunks = vec!();
+        let mut chunks = vec![];
         let mut chunk = vec![0; KEY_SIZE];
+
+        // todo: go from base64
 
         // Break txt into chunks
         let mut amt_read = 1;
@@ -268,7 +267,7 @@ mod tests {
         for i in 0..KEY_SIZE {
             let mut block = vec![0; chunks.len()];
             for (j, chunk) in chunks.iter().enumerate() {
-                block[j] = chunk[i]; 
+                block[j] = chunk[i];
             }
             println!("{}", chunks.len());
             try_decode_ciphertxt_with_single_char(&String::from_utf8(block).unwrap());
